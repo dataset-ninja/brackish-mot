@@ -1,7 +1,10 @@
+import glob
 import os
 import shutil
+from collections import defaultdict
 
 import supervisely as sly
+from dataset_tools.convert import unpack_if_archive
 from supervisely.io.fs import (
     file_exists,
     get_file_name,
@@ -11,7 +14,6 @@ from supervisely.io.fs import (
 from tqdm import tqdm
 
 import src.settings as s
-from dataset_tools.convert import unpack_if_archive
 
 
 def convert_and_upload_supervisely_project(
@@ -19,72 +21,165 @@ def convert_and_upload_supervisely_project(
 ) -> sly.ProjectInfo:
     # Possible structure for bbox case. Feel free to modify as you needs.
 
-    root_path = ""
-    images_folder = "images"
-    bboxes_folder = "labels"
+    dataset_path = "/home/alex/DATASETS/TODO/archive"
     batch_size = 30
-    img_ext = ".png"
-    ann_ext = ".txt"
 
     def create_ann(image_path):
-        labels, img_tags, label_tags = [], [], []
+        labels = []
+        tags = []
 
-        image_np = sly.imaging.image.read(image_path)[:, :, 0]
-        img_height = image_np.shape[0]
-        img_width = image_np.shape[1]
+        # image_np = sly.imaging.image.read(image_path)[:, :, 0]
+        if "Synth" in image_path:
+            img_height = 544  # image_np.shape[0]
+            img_wight = 960  # image_np.shape[1]
+            synth_meta = synth_to_meta[image_path.split("/")[-5]]
+            synth = sly.Tag(synth_meta)
+            tags.append(synth)
 
-        file_name = get_file_name(image_path)
-        curr_anns_dirpath = ""
-        ann_path = os.path.join(curr_anns_dirpath, file_name + ann_ext)
+        else:
+            img_height = 1080
+            img_wight = 1920
 
-        if file_exists(ann_path):
-            with open(ann_path) as f:
-                content = f.read().split("\n")
-                for curr_data in content:
-                    if len(curr_data) != 0:
-                        curr_data = list(map(float, curr_data.split(" ")))
+        subfolder = image_path.split("/")[-3]
+        seq = sly.Tag(sequence_meta, value=subfolder)
+        tags.append(seq)
 
-                        left = int((curr_data[1] - curr_data[3] / 2) * img_width)
-                        right = int((curr_data[1] + curr_data[3] / 2) * img_width)
-                        top = int((curr_data[2] - curr_data[4] / 2) * img_height)
-                        bottom = int((curr_data[2] + curr_data[4] / 2) * img_height)
+        bboxes_data = folder_to_gt_data[subfolder][get_file_name_with_ext(image_path)]
+        if len(bboxes_data) > 1:
+            for curr_bboxes_data in bboxes_data:
+                l_tags = []
+                target_id_tag = sly.Tag(target_id_meta, value=int(curr_bboxes_data[0]))
+                l_tags.append(target_id_tag)
 
-                        rectangle = sly.Rectangle(top=top, left=left, bottom=bottom, right=right)
+                obj_class = index_to_class[int(curr_bboxes_data[6])]
 
-                        for obj_class in obj_classes:
-                            if obj_class.name == idx2clsname[curr_data[0]]:
-                                curr_obj_class = obj_class
-                                break
-                        label = sly.Label(rectangle, curr_obj_class, label_tags)
-                        labels.append(label)
+                left = float(curr_bboxes_data[1])
+                right = left + float(curr_bboxes_data[3])
+                top = float(curr_bboxes_data[2])
+                bottom = top + float(curr_bboxes_data[4])
 
-        return sly.Annotation(img_size=(img_height, img_width), labels=labels, img_tags=img_tags)
+                if top > bottom or left > right:
+                    continue
 
-    class_names = ["class1", "class2", ...]
-    idx2clsname = {}
-    obj_classes = [sly.ObjClass(name, sly.Rectangle) for name in class_names]
+                rectangle = sly.Rectangle(top=top, left=left, bottom=bottom, right=right)
+                label = sly.Label(rectangle, obj_class, tags=l_tags)
+                labels.append(label)
+
+        return sly.Annotation(img_size=(img_height, img_wight), labels=labels, img_tags=tags)
+
+    fish = sly.ObjClass("fish", sly.Rectangle)
+    crab = sly.ObjClass("crab", sly.Rectangle)
+    shrimp = sly.ObjClass("shrimp", sly.Rectangle)
+    starfish = sly.ObjClass("starfish", sly.Rectangle)
+    small = sly.ObjClass("small fish", sly.Rectangle)
+    jellyfish = sly.ObjClass("jellyfish", sly.Rectangle)
+
+    index_to_class = {1: fish, 2: crab, 3: shrimp, 4: starfish, 5: small, 6: jellyfish}
+
+    sequence_meta = sly.TagMeta("sequence", sly.TagValueType.ANY_STRING)
+    target_id_meta = sly.TagMeta("target id", sly.TagValueType.ANY_NUMBER)
+
+    synth = sly.TagMeta("plain background, no turbidity, no distractors", sly.TagValueType.NONE)
+    synth_b = sly.TagMeta("video background, no turbidity, no distractors", sly.TagValueType.NONE)
+
+    synth_t = sly.TagMeta("plain background, turbidity, no distractors", sly.TagValueType.NONE)
+    synth_d = sly.TagMeta("plain background, no turbidity, with distractors", sly.TagValueType.NONE)
+    synth_dt = sly.TagMeta("plain background, with turbidityand distractors", sly.TagValueType.NONE)
+    synth_bt = sly.TagMeta(
+        "video background with turbidity, but without distractors", sly.TagValueType.NONE
+    )
+    synth_bd = sly.TagMeta(
+        "video background with distractor, but no turbidity", sly.TagValueType.NONE
+    )
+    synth_btd = sly.TagMeta(
+        "video background with turbidity and distractors", sly.TagValueType.NONE
+    )
+
+    synth_to_meta = {
+        "brackishMOTSynth": synth,
+        "brackishMOTSynth_B": synth_b,
+        "brackishMOTSynth_BD": synth_bd,
+        "brackishMOTSynth_BF": synth_bt,
+        "brackishMOTSynth_BFD": synth_btd,
+        "brackishMOTSynth_D": synth_d,
+        "brackishMOTSynth_F": synth_t,
+        "brackishMOTSynth_FD": synth_dt,
+    }
 
     project = api.project.create(workspace_id, project_name, change_name_if_conflict=True)
-    meta = sly.ProjectMeta(obj_classes=obj_classes)
+    meta = sly.ProjectMeta(
+        obj_classes=list(index_to_class.values()),
+        tag_metas=[
+            sequence_meta,
+            target_id_meta,
+            synth,
+            synth_b,
+            synth_bd,
+            synth_bt,
+            synth_btd,
+            synth_d,
+            synth_t,
+            synth_dt,
+        ],
+    )
     api.project.update_meta(project.id, meta.to_json())
 
-    for ds_name in os.listdir(root_path):
+    train_images_pathes_n = glob.glob(dataset_path + "/BrackishMOT/train/*/img1/*.jpg")
+    test_images_pathes_n = glob.glob(dataset_path + "/BrackishMOT/test/*/img1/*.jpg")
+    train_images_pathes_s = glob.glob(dataset_path + "/brackishMOTSynth/*/train/*/img1/*.jpg")
+    train_images_pathes = train_images_pathes_n + train_images_pathes_s
+
+    folder_to_gt_data = {}
+    gt_pathes_n = glob.glob(dataset_path + "/BrackishMOT/*/*/gt/gt.txt")
+    gt_pathes_s = glob.glob(dataset_path + "/brackishMOTSynth/*/*/*/gt/gt.txt")
+    gt_pathes = gt_pathes_n + gt_pathes_s
+    for curr_path in gt_pathes:
+        folder = curr_path.split("/")[-3]
+        temp_dict = defaultdict(list)
+        with open(curr_path) as f:
+            content = f.read().split("\n")
+            for row in content:
+                if len(row) > 1:
+                    curr_data = row.split(",")
+                    im_name = curr_data[0].zfill(6) + ".jpg"
+                    temp_dict[im_name].append(curr_data[1:])
+
+        folder_to_gt_data[folder] = temp_dict
+
+    ds_name_to_data = {"train": train_images_pathes, "test": test_images_pathes_n}
+
+    for ds_name, images_pathes in ds_name_to_data.items():
+
         dataset = api.dataset.create(project.id, ds_name, change_name_if_conflict=True)
-        dataset_path = os.path.join(root_path, ds_name)
 
-        images_pathes = sly.fs.list_files_recursively(dataset_path, valid_extensions=[img_ext])
+        progress = sly.Progress("Create dataset {}".format(ds_name), len(images_pathes))
 
-        pbar = tqdm(desc=f"Create dataset '{ds_name}'", total=len(images_pathes))
-        for images_pathes_batch in sly.batched(images_pathes, batch_size=batch_size):
-            images_names_batch = [
-                get_file_name_with_ext(image_path) for image_path in images_pathes_batch
-            ]
+        for img_pathes_batch in sly.batched(images_pathes, batch_size=batch_size):
+            img_names_batch = []
+            for im_path in img_pathes_batch:
+                if "Synth" in im_path:
+                    prefix = im_path.split("/")[-5]
+                    if prefix == "brackishMOTSynth":
+                        im_name = im_path.split("/")[-3] + "_" + get_file_name_with_ext(im_path)
+                    else:
+                        im_name = (
+                            prefix.split("_")[1]
+                            + "_"
+                            + im_path.split("/")[-3]
+                            + "_"
+                            + get_file_name_with_ext(im_path)
+                        )
+                else:
+                    im_name = im_path.split("/")[-3] + "_" + get_file_name_with_ext(im_path)
 
-            img_infos = api.image.upload_paths(dataset.id, images_names_batch, images_pathes_batch)
-            img_ids = [image.id for image in img_infos]
+                img_names_batch.append(im_name)
 
-            anns = [create_ann(image_path) for image_path in images_pathes_batch]
+            img_infos = api.image.upload_paths(dataset.id, img_names_batch, img_pathes_batch)
+            img_ids = [im_info.id for im_info in img_infos]
+
+            anns = [create_ann(image_path) for image_path in img_pathes_batch]
             api.annotation.upload_anns(img_ids, anns)
 
-            pbar.update(len(images_names_batch))
+            progress.iters_done_report(len(img_names_batch))
+
     return project
