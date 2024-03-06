@@ -6,7 +6,7 @@ For millennia, humans have depended on oceans as a reliable food source. However
 
 ## Dataset description
 
-The authors explore the potential of using synthetic underwater sequences to train multi-object trackers. They present a framework designed to generate synthetic sequences resembling the BrackishMOT environment. The study delves into an analysis of the impact of key factors—specifically, turbidity, floating particles, and background—on tracker performance.
+The authors explore the potential of using synthetic underwater sequences to train multi-object trackers. They present a framework designed to generate synthetic sequences resembling the BrackishMOT environment. The study delves into an analysis of the impact of key factors specifically, turbidity, floating particles, and background on tracker performance.
 
 <img src="https://github.com/dataset-ninja/brackish-mot/assets/120389559/d9dbc7eb-a648-44a9-b3c2-db1292912a01" alt="image" width="800">
 
