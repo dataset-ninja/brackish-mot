@@ -28,6 +28,10 @@ def convert_and_upload_supervisely_project(
         labels = []
         tags = []
 
+        subfolder = image_path.split("/")[-3]
+        seq = sly.Tag(sequence_meta, value=subfolder)
+        tags.append(seq)
+
         # image_np = sly.imaging.image.read(image_path)[:, :, 0]
         if "Synth" in image_path:
             img_height = 544  # image_np.shape[0]
@@ -35,14 +39,11 @@ def convert_and_upload_supervisely_project(
             synth_meta = synth_to_meta[image_path.split("/")[-5]]
             synth = sly.Tag(synth_meta)
             tags.append(synth)
+            subfolder = image_path.split("/")[-5] + "^" + image_path.split("/")[-3]
 
         else:
             img_height = 1080
             img_wight = 1920
-
-        subfolder = image_path.split("/")[-3]
-        seq = sly.Tag(sequence_meta, value=subfolder)
-        tags.append(seq)
 
         bboxes_data = folder_to_gt_data[subfolder][get_file_name_with_ext(image_path)]
         if len(bboxes_data) > 1:
@@ -127,7 +128,7 @@ def convert_and_upload_supervisely_project(
     train_images_pathes_n = glob.glob(dataset_path + "/BrackishMOT/train/*/img1/*.jpg")
     test_images_pathes_n = glob.glob(dataset_path + "/BrackishMOT/test/*/img1/*.jpg")
     train_images_pathes_s = glob.glob(dataset_path + "/brackishMOTSynth/*/train/*/img1/*.jpg")
-    train_images_pathes = train_images_pathes_n + train_images_pathes_s
+    train_images_pathes = train_images_pathes_s + train_images_pathes_n
 
     folder_to_gt_data = {}
     gt_pathes_n = glob.glob(dataset_path + "/BrackishMOT/*/*/gt/gt.txt")
@@ -135,6 +136,8 @@ def convert_and_upload_supervisely_project(
     gt_pathes = gt_pathes_n + gt_pathes_s
     for curr_path in gt_pathes:
         folder = curr_path.split("/")[-3]
+        if "Synth" in curr_path:
+            folder = curr_path.split("/")[-5] + "^" + curr_path.split("/")[-3]
         temp_dict = defaultdict(list)
         with open(curr_path) as f:
             content = f.read().split("\n")
