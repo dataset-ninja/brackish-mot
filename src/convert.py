@@ -41,9 +41,15 @@ def convert_and_upload_supervisely_project(
             tags.append(synth)
             subfolder = image_path.split("/")[-5] + "^" + image_path.split("/")[-3]
 
+            s_tag = sly.Tag(synthetic_meta)
+
         else:
             img_height = 1080
             img_wight = 1920
+
+            s_tag = sly.Tag(real_meta)
+
+        tags.append(s_tag)
 
         bboxes_data = folder_to_gt_data[subfolder][get_file_name_with_ext(image_path)]
         if len(bboxes_data) > 1:
@@ -107,6 +113,9 @@ def convert_and_upload_supervisely_project(
         "brackishMOTSynth_FD": synth_dt,
     }
 
+    synthetic_meta = sly.TagMeta("synthetic", sly.TagValueType.NONE)
+    real_meta = sly.TagMeta("real", sly.TagValueType.NONE)
+
     project = api.project.create(workspace_id, project_name, change_name_if_conflict=True)
     meta = sly.ProjectMeta(
         obj_classes=list(index_to_class.values()),
@@ -121,6 +130,8 @@ def convert_and_upload_supervisely_project(
             synth_d,
             synth_t,
             synth_dt,
+            synthetic_meta,
+            real_meta,
         ],
     )
     api.project.update_meta(project.id, meta.to_json())
