@@ -15,7 +15,7 @@ from dataset_tools.templates import (
 ##################################
 PROJECT_NAME: str = "BrackishMOT"
 PROJECT_NAME_FULL: str = "BrackishMOT: The Brackish Multi-Object Tracking Dataset"
-HIDE_DATASET = True  # set False when 100% sure about repo quality
+HIDE_DATASET = False  # set False when 100% sure about repo quality
 
 ##################################
 # * After uploading to instance ##
@@ -106,6 +106,7 @@ SLYTAGSPLIT: Optional[Dict[str, Union[List[str], str]]] = {
         "video background with distractor, but no turbidity",
         "video background with turbidity and distractors",
     ],
+    "images types": ["real", "synthetic"],
     "__POSTTEXT__": "Additionally, every image marked with its ***sequence*** tag, labels marked with ***target id***. Explore its in Supervisely labelling tool",
 }
 
