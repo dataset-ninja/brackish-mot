@@ -1,6 +1,6 @@
 Dataset **BrackishMOT** can be downloaded in [Supervisely format](https://developer.supervisely.com/api-references/supervisely-annotation-json-format):
 
- [Download](Set 'HIDE_DATASET=False' to generate download link)
+ [Download](https://assets.supervisely.com/supervisely-supervisely-assets-public/teams_storage/e/o/Xn/wuNaOfe23iHQZYmVpMMU44443V2jUyWTgyT3sR04Di1GUpaUrGJW41tQ4hrxtVe48cD9EMy6nWS1TXYpszLpI8oWvXOyi1HysYmChX80Ew1beEGHSHwMw3VPWYWu.tar)
 
 As an alternative, it can be downloaded with *dataset-tools* package:
 ``` bash
